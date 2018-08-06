@@ -4,6 +4,7 @@ var play = {
     // Game width and height for convenience
     w = game.width;
     h = game.height;
+    var bullets;
 
     frame_counter = 0;
 
@@ -12,11 +13,6 @@ var play = {
     // Bg image
     this.bg = game.add.image(0, 0, "bg");
 
-    // Platform width
-    /* platform_width = game.cache.getImage("obstacle1").width;
-    platform_width = game.cache.getImage("obstacle2").width;
-    platform_width = game.cache.getImage("obstacle3").width;
-*/
     // Score sound
     this.sound.score = game.add.audio("score");
     this.sound.score.volume = 0.4;
@@ -32,6 +28,14 @@ var play = {
 
     // Obstacles
     this.obstacles = game.add.group();
+
+    //our bullet group 
+    bullets = game.add.group();
+    bullets.enableBody = true;
+    bullets.physicsBodyType = Phaser.Physics.ARCADE;
+    bullets.createMultiple(30, 'bullet');
+    bullets.outOfBoundsKill = true;
+    bullets.checkWorldBounds = true;
 
     // Player
     this.player = game.add.sprite(game.width / 2, 250, "player");
@@ -55,10 +59,12 @@ var play = {
 
     // Support for mouse click and touchscreen input
     game.input.onDown.add(this.onDown, this);
+    
+    //control for firing 
+    fireButton = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
 
     this.pauseAndUnpause(game);
   },
-
   update: function() {
     this.bmpText.text = game.global.score;
 
@@ -70,14 +76,16 @@ var play = {
       null,
       this
     );
+         //  Fire bullet
+   if (fireButton.isDown || game.input.activePointer.isDown) {
+    fireBullet();
+   }
 
     // Spawn enemies
     if (frame_counter % 90 == 0) {
       var gap = 120;
       var offset = (Math.random() < 0.5 ? -1 : 1) * Math.random() * 150;
       if (game.global.score > 4) {
-        /* var gap = 120;
-        var offset = (Math.random() < 0.5 ? -1 : 1) * Math.random() * 150; */
 
         this.spawnObstacle(
           game.global.obstacle_id++,
@@ -102,37 +110,9 @@ var play = {
           (has_given_point = false)
         );
       }
-      //   this.spawnObstacle(
-      //     game.global.obstacle_id++,
-      //     w / 2 + platform_width / 2 + gap / 2 + offset,
-      //     game.height,
-      //     (speed = 200),
-      //     (has_given_point = true)
-      //   );
     }
 
-    // Spawn enemies
-    /* if (game.global.score == 10) {
-      // var gap = 120;
-      //var offset = (Math.random() < 0.5 ? -1 : 1) * Math.random() * 150;
-
-      this.spawnObstacle(
-        game.global.obstacle_id++,
-        game.rnd.integerInRange(100, 200),
-        game.height,
-        (speed = 50),
-        (has_given_point = false)
-      );*/
-    //   this.spawnObstacle(
-    //     game.global.obstacle_id++,
-    //     w / 2 + platform_width / 2 + gap / 2 + offset,
-    //     game.height,
-    //     (speed = 200),
-    //     (has_given_point = true)
-    //   );
-    //}
-
-    this.move();
+     this.move();
 
     frame_counter++;
     game.global.score += this.scorePoint();
@@ -175,15 +155,11 @@ var play = {
 
     for (var i = 0; i < obstacles.length; i++) {
       if (obstacles[i].visible) {
-        // console.log("vis: ")
-        // console.log(obstacles[i].y,this.player.y);
         let py = this.player.y;
         let oy = obstacles[i].y;
-        //	let ox = obstacles[i].x;
 
         //if player is below obstacle and within 5 pixels and choose only one of the pair
-        if (py > oy && Math.abs(py - oy) < 5) {
-          /*&& ox < game.width / 2)*/ point++;
+        if (py > oy && Math.abs(py - oy) < 5) { point++;
           this.sound.score.play("", 0, 0.5, false);
         }
       }
@@ -192,8 +168,6 @@ var play = {
   },
 
   killPlayer: function(player) {
-    //issues with this
-    //game.plugins.screenShake.shake(20);
     this.sound.kill.play("", 0, 0.5, false);
     player.kill();
     game.state.start("gameOver");
@@ -205,10 +179,8 @@ var play = {
   // Move player
   move: function() {
     if (game.input.activePointer.isDown) {
-      //console.log(game.input.x);
       let rate = this.moveSpeed(game.input.x, game.width);
       let angle = this.moveAngle(rate, 3);
-      //console.log("rate: " + rate);
       this.player.x += rate;
       this.player.angle = angle;
     } else {
@@ -275,5 +247,19 @@ var play = {
         game.debug.body(obstacles[i]);
       }
     }
+  },
+
+  fireBullet: function()
+  {
+        //  Grab the first bullet we can from the pool
+        var bullet = bullets.getFirstExists(false);
+
+        if (bullet)
+        {
+            //  And fire it
+            bullet.reset(player.x, player.y + 8);
+            bullet.body.velocity.y = -400;
+        }
   }
 };
+
