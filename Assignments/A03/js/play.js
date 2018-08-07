@@ -4,7 +4,6 @@ var play = {
     // Game width and height for convenience
     w = game.width;
     h = game.height;
-    var bullets;
 
     frame_counter = 0;
 
@@ -22,20 +21,12 @@ var play = {
 
     // Music
     this.music = game.add.audio("music");
-    this.music.play("", 0, 0.5, true);
+    // this.music.play("", 0, 0.5, true);
 
     this.physics.startSystem(Phaser.Physics.ARCADE);
 
     // Obstacles
     this.obstacles = game.add.group();
-
-    //our bullet group 
-    bullets = game.add.group();
-    bullets.enableBody = true;
-    bullets.physicsBodyType = Phaser.Physics.ARCADE;
-    bullets.createMultiple(30, 'bullet');
-    bullets.outOfBoundsKill = true;
-    bullets.checkWorldBounds = true;
 
     // Player
     this.player = game.add.sprite(game.width / 2, 250, "player");
@@ -59,12 +50,30 @@ var play = {
 
     // Support for mouse click and touchscreen input
     game.input.onDown.add(this.onDown, this);
-    
-    //control for firing 
-    fireButton = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
+    //Keyboard functionality
+    this.fireButton = game.input.keyboard.addKey(Phaser.Keyboard.SPACEBAR);
+    this.leftKey = game.input.keyboard.addKey(Phaser.Keyboard.LEFT);
+    this.rightKey = game.input.keyboard.addKey(Phaser.Keyboard.RIGHT);
+
+    //Add bullets!
+    this.bullets = game.add.group();
+    this.bullets.enableBody = true;
+    this.bulletsphysicsBodyType = Phaser.Physics.ARCADE;
+    this.bullets.createMultiple(30, "bullet");
+    this.bullets.setAll("anchor.x", 0.5);
+    this.bullets.setAll("anchor.y", 1);
+    this.bullets.setAll("outOfBoundsKill", true);
+    this.bullets.setAll("checkWorldBounds", true);
+
+    this.explosions = game.add.group();
+    this.explosions.enable = true;
+    this.explosions.physicsBodytype = Phaser.Physics.ARCADE;
+    this.explosions.createMultiple(10, "explosion");
+    this.explosions.forEach(this.setupObstacles, this);
 
     this.pauseAndUnpause(game);
   },
+
   update: function() {
     this.bmpText.text = game.global.score;
 
@@ -76,22 +85,29 @@ var play = {
       null,
       this
     );
-         //  Fire bullet
-   if (fireButton.isDown || game.input.activePointer.isDown) {
-    fireBullet();
-   }
+
+    this.killPoint = game.physics.arcade.overlap(
+      this.obstacles,
+      this.bullets,
+      this.destroyItem,
+      null,
+      this
+    );
 
     // Spawn enemies
     if (frame_counter % 90 == 0) {
       var gap = 120;
       var offset = (Math.random() < 0.5 ? -1 : 1) * Math.random() * 150;
+
       if (game.global.score > 4) {
+        /* var gap = 120;
+        var offset = (Math.random() < 0.5 ? -1 : 1) * Math.random() * 150; */
 
         this.spawnObstacle(
           game.global.obstacle_id++,
           game.rnd.integerInRange(50, game.width),
           game.height,
-          (speed = 500),
+          (speed = 200 * game.global.score * 0.5),
           (has_given_point = false)
         );
         this.spawnObstacle(
@@ -101,6 +117,7 @@ var play = {
           (speed = 400),
           (has_given_point = false)
         );
+        // game.global.score++;
       } else {
         this.spawnObstacle(
           game.global.obstacle_id++,
@@ -112,10 +129,15 @@ var play = {
       }
     }
 
-     this.move();
+    this.move();
 
+    //  Fire bullet
+    if (this.fireButton.isDown) {
+      this.fireBullet();
+      console.log(this.fireButton.isDown);
+    }
     frame_counter++;
-    game.global.score += this.scorePoint();
+    //game.global.score++;
   },
   //entity (unique identifier)
   spawnObstacle: function(entity, x, y, speed, has_given_point) {
@@ -139,48 +161,51 @@ var play = {
     obstacle.events.onOutOfBounds.add(this.killObstacle, this);
 
     obstacle.outOfBoundsKill = true;
-    console.log(this.obstacles);
+    // console.log(this.obstacles);
   },
 
   killObstacle: function(obstacle) {
-    console.log(obstacle);
+    // console.log(obstacle);
     this.obstacles.remove(obstacle);
-    console.log(this.obstacles.children.length);
+    //  console.log(this.obstacles.children.length);
   },
 
-  scorePoint: function() {
-    //console.log(this.obstacles)
-    var point = 0;
-    var obstacles = this.obstacles.children;
-
-    for (var i = 0; i < obstacles.length; i++) {
-      if (obstacles[i].visible) {
-        let py = this.player.y;
-        let oy = obstacles[i].y;
-
-        //if player is below obstacle and within 5 pixels and choose only one of the pair
-        if (py > oy && Math.abs(py - oy) < 5) { point++;
-          this.sound.score.play("", 0, 0.5, false);
-        }
-      }
-    }
-    return point;
+  setupObstacles: function(obstacle) {
+    obstacle.anchor.x = 0.5;
+    obstacle.anchor.y = 0.5;
+    obstacle.animations.add("explosion");
   },
 
   killPlayer: function(player) {
+    //issues with this
+    //game.plugins.screenShake.shake(20);
     this.sound.kill.play("", 0, 0.5, false);
-    player.kill();
-    game.state.start("gameOver");
+    // player.kill();
+    // game.state.start("gameOver");
   },
-
+  /**
+   * Source: https://phaser.io/examples/v2/games/invaders
+   *
+   * Collision handler for a bullet and obstacle
+   */
+  destroyItem: function(bullet, obstacle) {
+    var explosion = this.explosions.getFirstExists(false);
+    explosion.reset(obstacle.body.x, obstacle.body.y);
+    explosion.play("explosion", 30, false, true);
+    bullet.kill();
+    obstacle.kill();
+    game.global.score++;
+  },
   // Tap on touchscreen or click with mouse
   onDown: function(pointer) {},
 
   // Move player
   move: function() {
     if (game.input.activePointer.isDown) {
+      //console.log(game.input.x);
       let rate = this.moveSpeed(game.input.x, game.width);
       let angle = this.moveAngle(rate, 3);
+      //console.log("rate: " + rate);
       this.player.x += rate;
       this.player.angle = angle;
     } else {
@@ -207,8 +232,33 @@ var play = {
       ratio /= 2;
       rate = ratio;
     }
-    console.log(rate * skill);
+    // console.log(rate * skill);
     return rate * skill;
+  },
+
+  fireBullet: function() {
+    //  To avoid them being allowed to fire too fast we set a time limit
+    if (game.time.now > bulletTimer) {
+      var BULLET_SPEED = 400;
+      var BULLET_SPACING = 250;
+      //  Grab the first bullet we can from the pool
+      bullet = this.bullets.getFirstExists(false);
+
+      if (bullet) {
+        //  And fire it
+        var bulletOffset = 20 * Math.sin(game.math.degToRad(this.player.angle));
+        bullet.reset(this.player.x, this.player.y + 8);
+        bullet.angle = this.player.angle;
+        game.physics.arcade.velocityFromAngle(
+          bullet.angle + 90,
+          BULLET_SPEED,
+          bullet.body.velocity
+        );
+        bullet.body.velocity.x += this.player.body.velocity.x;
+
+        bulletTimer = game.time.now + BULLET_SPACING;
+      }
+    }
   },
 
   pauseAndUnpause: function(game) {
@@ -247,19 +297,5 @@ var play = {
         game.debug.body(obstacles[i]);
       }
     }
-  },
-
-  fireBullet: function()
-  {
-        //  Grab the first bullet we can from the pool
-        var bullet = bullets.getFirstExists(false);
-
-        if (bullet)
-        {
-            //  And fire it
-            bullet.reset(player.x, player.y + 8);
-            bullet.body.velocity.y = -400;
-        }
   }
 };
-
